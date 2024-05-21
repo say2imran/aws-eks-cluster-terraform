@@ -2,14 +2,16 @@ provider "aws" {
   region = var.aws_region
 }
 
+data "aws_caller_identity" "current" {}
 data "aws_availability_zones" "available" {}
 
 data "aws_eks_cluster" "cluster" {
-  name = module.eks.cluster_id
+  name = module.eks.cluster_name
+  depends_on = [module.eks.cluster_name]
 }
 
 data "aws_eks_cluster_auth" "cluster" {
-  name = module.eks.cluster_id
+  name = module.eks.cluster_name
 }
 
 # locals {
@@ -27,7 +29,7 @@ module "eks-kubeconfig" {
   version    = "1.0.0"
 
   depends_on = [module.eks]
-  cluster_id =  module.eks.cluster_id
+  cluster_id =  module.eks.cluster_name
 }
 
 resource "local_file" "kubeconfig" {
@@ -65,9 +67,13 @@ module "eks" {
 
   cluster_name    = var.cluster_name
   cluster_version = "1.29"
-  subnet_ids      = module.vpc.private_subnets
-  cluster_endpoint_public_access = true
+
   vpc_id = module.vpc.vpc_id
+  subnet_ids      = module.vpc.private_subnets
+
+  cluster_endpoint_public_access = true
+  enable_cluster_creator_admin_permissions = true
+  enable_efa_support = true
 
   cluster_addons = {
     coredns = {
@@ -87,7 +93,7 @@ module "eks" {
   eks_managed_node_group_defaults = {
     ami_type       = "AL2_x86_64"
     instance_types = ["m5.large"]
-
+    capacity_type  = "SPOT"
     attach_cluster_primary_security_group = true
   }
 
@@ -98,6 +104,51 @@ module "eks" {
       min_capacity     = 1
 
       instance_type = "m5.large"
+      capacity_type  = "SPOT"
+
     }
   }
 }
+
+# resource "aws_iam_policy" "additional" {
+#   name        = "${local.name}-additional"
+#   description = "Example usage of node additional policy"
+#
+#   policy = jsonencode({
+#     Version = "2012-10-17"
+#     Statement = [
+#       {
+#         Action = [
+#           "ec2:Describe*",
+#         ]
+#         Effect   = "Allow"
+#         Resource = "*"
+#       },
+#     ]
+#   })
+#
+#   tags = local.tags
+# }
+
+# resource "aws_iam_role" "this" {
+#   for_each = toset(["single", "multiple"])
+#
+#   name = "ex-${each.key}"
+#
+#   # Just using for this example
+#   assume_role_policy = jsonencode({
+#     Version = "2012-10-17"
+#     Statement = [
+#       {
+#         Action = "sts:AssumeRole"
+#         Effect = "Allow"
+#         Sid    = "Example"
+#         Principal = {
+#           Service = "ec2.amazonaws.com"
+#         }
+#       },
+#     ]
+#   })
+#
+#   tags = local.tags
+# }

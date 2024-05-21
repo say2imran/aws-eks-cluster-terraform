@@ -103,4 +103,5 @@ resource "aws_eks_pod_identity_association" "association" {
   namespace = var.namespace
   service_account = var.service_account_name
   role_arn = aws_iam_role.eks_pod_identity_role.arn
+  depends_on = [module.eks.cluster_name]
   }
